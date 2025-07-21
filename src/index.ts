@@ -48,6 +48,7 @@ app.post("/upload", upload.single("video"), async (req: Request, res: Response) 
 
     // Convert to HLS
     const ffmpegProcess = spawn("ffmpeg", [
+        "-y",
       "-i", inputPath,
       "-vf", "scale=1280:-2",
       "-c:v", "libx264",
