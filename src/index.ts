@@ -7,7 +7,10 @@ import { spawn } from 'child_process';
 
 export const app = express();
 const PORT = process.env.PORT || 5000;
-const FRONTEND_ORIGIN = 'https://frontend-mu-two-39.vercel.app';
+const FRONTEND_ORIGIN = [
+    'https://frontend-mu-two-39.vercel.app',
+    'http://localhost:3000'
+];
 
 app.use(cors({
   origin: FRONTEND_ORIGIN,
