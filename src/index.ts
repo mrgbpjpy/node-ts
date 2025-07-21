@@ -1,17 +1,15 @@
+// backend.ts
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
+import Busboy from 'busboy';
 import ffmpeg from 'fluent-ffmpeg';
-import { IncomingHttpHeaders } from 'http';
-
-// ✅ CommonJS-style import required for proper typing
-const Busboy = require('busboy');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ✅ Ensure required folders exist
+// Ensure required folders exist
 const ensureDirs = ['uploads', 'videos', 'thumbnails', 'public'];
 ensureDirs.forEach(dir => {
   const fullPath = path.join(__dirname, dir);
@@ -21,7 +19,7 @@ ensureDirs.forEach(dir => {
   }
 });
 
-// ✅ CORS setup
+// CORS configuration
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
@@ -29,12 +27,12 @@ app.use(cors({
 }));
 app.options('*', cors());
 
-// ✅ Static routes
+// Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/videos', express.static(path.join(__dirname, 'videos')));
 app.use('/thumbnails', express.static(path.join(__dirname, 'thumbnails')));
 
-// ✅ Root route
+// Root endpoint
 app.get('/', (_req: Request, res: Response) => {
   res.send(`
     <html>
@@ -47,22 +45,19 @@ app.get('/', (_req: Request, res: Response) => {
   `);
 });
 
-// ✅ Upload route with full typings
+// Upload handler
 app.post('/upload', (req: Request, res: Response) => {
-  const bb = new Busboy({ headers: req.headers as IncomingHttpHeaders });
-
+  const bb = Busboy({ headers: req.headers });
   let filePath = '';
   let fileName = '';
   let outputDir = '';
+  let thumbnailPath = '';
 
-  bb.on('file', (
-    fieldname: string,
-    file: NodeJS.ReadableStream,
-    filename: string
-  ) => {
+  bb.on('file', (_fieldname: string, file: NodeJS.ReadableStream, filename: string) => {
     fileName = path.parse(filename).name.replace(/\s+/g, '_');
     filePath = path.join(__dirname, 'uploads', `${fileName}.mp4`);
     outputDir = path.join(__dirname, 'videos', fileName);
+    thumbnailPath = path.join(__dirname, 'thumbnails', `${fileName}.jpg`);
 
     const writeStream = fs.createWriteStream(filePath);
     file.pipe(writeStream);
@@ -113,10 +108,10 @@ app.post('/upload', (req: Request, res: Response) => {
   req.pipe(bb);
 });
 
-// ✅ Start server
+// Start server
 app.listen(PORT, () => {
   console.log(`[LOG] Backend running at http://localhost:${PORT}`);
 });
 
-// ✅ Export for testing
+// Export app for development/testing
 export { app };
