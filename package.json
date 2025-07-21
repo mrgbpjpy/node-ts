@@ -30,9 +30,11 @@
     "@types/express": "^5.0.3",
     "@types/fluent-ffmpeg": "^2.1.27",
     "@types/multer": "^2.0.0",
-    "@types/node": "^20.14.9",
+    "@types/node": "^20.19.9",
+    "install": "^0.13.0",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "typescriptnpm": "^1.0.1"
   },
   "packageManager": "pnpm@9.4.0"
 }

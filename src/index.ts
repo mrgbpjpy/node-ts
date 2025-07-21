@@ -2,13 +2,13 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
-import { pipeline } from 'stream';
-import Busboy from 'busboy';
+import busboy, { BusboyConfig } from 'busboy';
 import ffmpeg from 'fluent-ffmpeg';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Ensure required folders exist
 const ensureDirs = ['uploads', 'videos', 'thumbnails', 'public'];
 ensureDirs.forEach(dir => {
   const fullPath = path.join(__dirname, dir);
@@ -18,6 +18,7 @@ ensureDirs.forEach(dir => {
   }
 });
 
+// CORS config
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
@@ -25,10 +26,12 @@ app.use(cors({
 }));
 app.options('*', cors());
 
+// Static routes
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/videos', express.static(path.join(__dirname, 'videos')));
 app.use('/thumbnails', express.static(path.join(__dirname, 'thumbnails')));
 
+// Default GET
 app.get('/', (_req: Request, res: Response) => {
   res.send(`
     <html>
@@ -41,14 +44,15 @@ app.get('/', (_req: Request, res: Response) => {
   `);
 });
 
+// Upload route
 app.post('/upload', (req: Request, res: Response) => {
-  const busboy = Busboy({ headers: req.headers });
+  const bb = busboy({ headers: req.headers } as BusboyConfig);
   let filePath = '';
   let fileName = '';
   let outputDir = '';
   let thumbnailPath = '';
 
-  busboy.on('file', (_fieldname: string, file: NodeJS.ReadableStream, filename: string) => {
+  bb.on('file', (_fieldname: string, file: NodeJS.ReadableStream, filename: string) => {
     fileName = path.parse(filename).name.replace(/\s+/g, '_');
     filePath = path.join(__dirname, 'uploads', `${fileName}.mp4`);
     outputDir = path.join(__dirname, 'videos', fileName);
@@ -58,7 +62,7 @@ app.post('/upload', (req: Request, res: Response) => {
     file.pipe(writeStream);
   });
 
-  busboy.on('finish', () => {
+  bb.on('finish', () => {
     fs.mkdirSync(outputDir, { recursive: true });
 
     ffmpeg(filePath)
@@ -87,21 +91,26 @@ app.post('/upload', (req: Request, res: Response) => {
               streamUrl: `/videos/${fileName}/index.m3u8`,
               thumbnailUrl: `/thumbnails/${fileName}.jpg`
             });
+          })
+          .on('error', (thumbErr: Error) => {
+            console.error('[ERROR] Thumbnail generation failed:', thumbErr);
+            res.status(500).json({ error: 'Thumbnail generation failed' });
           });
       })
       .on('error', (err: Error) => {
-        console.error('[ERROR] FFmpeg processing failed:', err);
+        console.error('[ERROR] FFmpeg HLS conversion failed:', err);
         res.status(500).json({ error: 'FFmpeg processing failed' });
       })
       .run();
   });
 
-  req.pipe(busboy);
+  req.pipe(bb);
 });
 
+// Start server
 app.listen(PORT, () => {
   console.log(`[LOG] Backend running at http://localhost:${PORT}`);
 });
 
-// Export app for dev.ts or testing purposes
+// Export app for development/testing
 export { app };
