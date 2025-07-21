@@ -64,12 +64,12 @@ app.post('/upload', upload.single('video'), async (req: Request, res: Response) 
 
     ffmpeg(inputPath)
       .outputOptions([
-        '-codec: copy',           // ⚠️ common issue: `copy` is not valid with ':'; should be '-codec copy'
-        '-start_number 0',
-        '-hls_time 10',
-        '-hls_list_size 0',
-        '-f hls',
-      ])
+  '-c:v copy',
+  '-start_number 0',
+  '-hls_time 10',
+  '-hls_list_size 0',
+  '-f hls',
+])
       .output(outputM3U8)
       .on('start', (cmd) => {
         console.log('FFmpeg started with command:', cmd);
