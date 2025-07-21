@@ -1,119 +1,104 @@
-import express, { Request, Response } from "express";
-import cors from "cors";
-import multer from "multer";
-import path from "path";
-import fs from "fs";
-import { spawn } from "child_process";
+import express, { Request, Response } from 'express';
+import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
+import { pipeline } from 'stream';
+import Busboy from 'busboy';
+import ffmpeg from 'fluent-ffmpeg';
 
 const app = express();
-const PORT = process.env.PORT || 8080;
-const allowedOrigins = [ "https://frontend-mu-two-39.vercel.app" ,"http://localhost:3000"]; // ✅ Add your frontend domains here
-// Middleware
+const PORT = process.env.PORT || 5000;
+
+const ensureDirs = ['uploads', 'videos', 'thumbnails', 'public'];
+ensureDirs.forEach(dir => {
+  const fullPath = path.join(__dirname, dir);
+  if (!fs.existsSync(fullPath)) {
+    fs.mkdirSync(fullPath, { recursive: true });
+    console.log('[LOG] Created folder:', fullPath);
+  }
+});
+
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  credentials: true
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type']
 }));
-app.use(express.json());
+app.options('*', cors());
 
-// Static file serving
-app.use("/videos", express.static(path.join(__dirname, "videos")));
-app.use("/thumbnails", express.static(path.join(__dirname, "thumbnails")));
+app.use(express.static(path.join(__dirname, 'public')));
+app.use('/videos', express.static(path.join(__dirname, 'videos')));
+app.use('/thumbnails', express.static(path.join(__dirname, 'thumbnails')));
 
-// Multer setup for file uploads
-const upload = multer({ dest: "uploads/" });
-
-// Upload endpoint
-app.post("/upload", upload.single("video"), async (req: Request, res: Response) => {
-  if (!req.file) {
-    return res.status(400).json({ error: "No file uploaded" });
-  }
-
-  const inputPath = req.file.path;
-  const baseName = path.parse(req.file.originalname).name;
-  const videoDir = path.join(__dirname, "videos", baseName);
-  const outputPath = path.join(videoDir, "index.m3u8");
-  const thumbnailDir = path.join(__dirname, "thumbnails");
-  const thumbnailPath = path.join(thumbnailDir, `${baseName}.jpg`);
-
-  try {
-    // Ensure output directories exist
-    fs.mkdirSync(videoDir, { recursive: true });
-    fs.mkdirSync(thumbnailDir, { recursive: true });
-
-    // Convert to HLS
-    const ffmpegProcess = spawn("ffmpeg", [
-        "-y",
-      "-i", inputPath,
-      "-vf", "scale=1280:-2",
-      "-c:v", "libx264",
-      "-profile:v", "main",
-      "-crf", "20",
-      "-sc_threshold", "0",
-      "-g", "48",
-      "-keyint_min", "48",
-      "-c:a", "aac",
-      "-ar", "48000",
-      "-b:a", "128k",
-      "-hls_time", "10",
-      "-hls_playlist_type", "vod",
-      "-f", "hls",
-      outputPath,
-    ]);
-
-    ffmpegProcess.stderr.on("data", (data) => {
-      console.error("❌ FFmpeg stderr:", data.toString());
-    });
-
-    ffmpegProcess.on("close", (code) => {
-      if (code !== 0) {
-        return res.status(500).json({ error: "FFmpeg execution error" });
-      }
-
-      // Generate thumbnail after HLS conversion
-      const thumbProcess = spawn("ffmpeg", [
-        "-y",
-        "-i", inputPath,
-        "-ss", "00:00:01.000",
-        "-vframes", "1",
-        "-vf", "scale=1280:-1",
-        "-q:v", "2",
-        "-update", "1", // 🛠 Fixes 'no image sequence' error
-        "-pix_fmt", "yuv420p",
-        thumbnailPath,
-      ]);
-
-      thumbProcess.stderr.on("data", (data) => {
-        console.error("❌ Thumbnail stderr:", data.toString());
-      });
-
-      thumbProcess.on("close", (thumbCode) => {
-        if (thumbCode !== 0) {
-          return res.status(500).json({ error: "Thumbnail generation failed" });
-        }
-
-        return res.status(200).json({
-          message: "Upload and processing complete",
-          streamUrl: `/videos/${baseName}/index.m3u8`,
-          thumbnailUrl: `/thumbnails/${baseName}.jpg`,
-        });
-      });
-    });
-  } catch (err) {
-    console.error("❌ Server error:", err);
-    return res.status(500).json({ error: "Server error" });
-  }
+app.get('/', (_req: Request, res: Response) => {
+  res.send(`
+    <html>
+      <head><title>Prime Video Backend</title></head>
+      <body style="font-family:sans-serif;padding:40px;">
+        <h1>Prime Video Backend</h1>
+        <p>POST a video file to <code>/upload</code> for HLS conversion.</p>
+      </body>
+    </html>
+  `);
 });
 
-// Start server
+app.post('/upload', (req: Request, res: Response) => {
+  const busboy = new Busboy({ headers: req.headers });
+  let filePath = '';
+  let fileName = '';
+  let outputDir = '';
+  let thumbnailPath = '';
+
+  busboy.on('file', (_fieldname, file, filename) => {
+    fileName = path.parse(filename).name.replace(/\s+/g, '_');
+    filePath = path.join(__dirname, 'uploads', `${fileName}.mp4`);
+    outputDir = path.join(__dirname, 'videos', fileName);
+    thumbnailPath = path.join(__dirname, 'thumbnails', `${fileName}.jpg`);
+
+    const writeStream = fs.createWriteStream(filePath);
+    file.pipe(writeStream);
+  });
+
+  busboy.on('finish', () => {
+    fs.mkdirSync(outputDir, { recursive: true });
+
+    ffmpeg(filePath)
+      .outputOptions([
+        '-vf scale=w=360:h=640:force_original_aspect_ratio=decrease',
+        '-c:a aac',
+        '-c:v libx264',
+        '-preset veryfast',
+        '-f hls',
+        '-hls_time 4',
+        '-hls_list_size 0',
+        `-hls_segment_filename ${path.join(outputDir, 'segment_%03d.ts')}`
+      ])
+      .output(path.join(outputDir, 'index.m3u8'))
+      .on('end', () => {
+        ffmpeg(filePath)
+          .screenshots({
+            timestamps: ['00:00:01'],
+            filename: `${fileName}.jpg`,
+            folder: path.join(__dirname, 'thumbnails'),
+            size: '360x640'
+          })
+          .on('end', () => {
+            fs.unlinkSync(filePath);
+            res.json({
+              streamUrl: `/videos/${fileName}/index.m3u8`,
+              thumbnailUrl: `/thumbnails/${fileName}.jpg`
+            });
+          });
+      })
+      .on('error', err => {
+        console.error('[ERROR] FFmpeg processing failed:', err);
+        res.status(500).json({ error: 'FFmpeg processing failed' });
+      })
+      .run();
+  });
+
+  req.pipe(busboy);
+});
+
 app.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
+  console.log(`[LOG] Backend running at http://localhost:${PORT}`);
 });
-
-// 👇 Export for testing or dev entry point
-export { app };
