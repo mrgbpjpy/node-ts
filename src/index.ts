@@ -63,42 +63,35 @@ app.post('/upload', upload.single('video'), async (req: Request, res: Response) 
     const isCopySafe = ['.mp4', '.mov', '.m4v'].includes(ext);
 
     const command = ffmpeg(inputPath)
-      .outputOptions(isCopySafe ? [
-        '-c:v copy',
-        '-c:a copy',
-        '-start_number 0',
-        '-hls_time 10',
-        '-hls_list_size 0',
-        '-f hls'
-      ] : [
-        '-c:v libx264',
-        '-preset veryfast',
-        '-crf 23',
-        '-c:a aac',
-        '-b:a 128k',
-        '-ac 2',
-        '-start_number 0',
-        '-hls_time 10',
-        '-hls_list_size 0',
-        '-f hls'
-      ])
-      .output(outputM3U8)
-      .on('start', cmdLine => {
-        console.log(`FFmpeg started with command: ${cmdLine}`);
-      })
-      .on('end', async () => {
-        console.log('✅ FFmpeg finished conversion');
-        await fs.unlink(inputPath); // Clean up original file
-        const streamPath = `/videos/${filename}/index.m3u8`;
-        console.log(`Sending stream path to frontend: ${streamPath}`);
-        res.json({ streamUrl: streamPath });
-      })
-      .on('error', (err) => {
-        console.error('❌ FFmpeg error:', err.message);
-        res.status(500).json({ error: 'Video conversion failed' });
-      });
+  .outputOptions([
+    '-c:v libx264',
+    '-preset ultrafast',  // ⚡️ Use less CPU time, slightly bigger file
+    '-crf 23',
+    '-c:a aac',
+    '-b:a 128k',
+    '-ac 2',
+    '-start_number 0',
+    '-hls_time 10',
+    '-hls_list_size 0',
+    '-f hls'
+  ])
+  .output(outputM3U8)
+  .on('start', cmdLine => {
+    console.log(`FFmpeg started with command: ${cmdLine}`);
+  })
+  .on('end', async () => {
+    console.log('✅ FFmpeg finished conversion');
+    await fs.unlink(inputPath);
+    const streamPath = `/videos/${filename}/index.m3u8`;
+    console.log(`Sending stream path to frontend: ${streamPath}`);
+    res.json({ streamUrl: streamPath });
+  })
+  .on('error', (err) => {
+    console.error('❌ FFmpeg error:', err.message);
+    res.status(500).json({ error: 'Video conversion failed or server ran out of memory' });
+  });
 
-    command.run();
+command.run();
 
   } catch (err) {
     console.error('❌ Upload failed:', err);
