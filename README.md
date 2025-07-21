@@ -1,6 +1,7 @@
 # 📦 Prime Video Player - Full Stack App
 
-Live project [text](https://frontend-mu-two-39.vercel.app/)
+Live project [Prime Video Player ](https://frontend-mu-two-39.vercel.app/)
+
 This project is a full-stack web application that allows users to:
 
 - Upload a video file
