@@ -77,6 +77,7 @@ app.post("/upload", upload.single("video"), async (req: Request, res: Response) 
 
       // Generate thumbnail after HLS conversion
       const thumbProcess = spawn("ffmpeg", [
+        "-y",
         "-i", inputPath,
         "-ss", "00:00:01.000",
         "-vframes", "1",
