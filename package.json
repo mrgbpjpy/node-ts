@@ -1,26 +1,33 @@
 {
-	"name": "node-ts",
-	"version": "0.0.0",
-	"author": "dayblox",
-	"description": "Node.js & TypeScript starter",
-	"packageManager": "pnpm@9.4.0",
-	"engines": {
-		"node": ">=18.11",
-		"pnpm": ">=7.27"
-	},
-	"scripts": {
-		"dev": "pnpm /dev:.*/",
-		"dev:build": "esbuild dev.ts ./src --bundle --outdir=dist --packages=external --platform=node --sourcemap --watch",
-		"dev:run": "node --inspect -r ./dist/dev.js --watch dist/src",
-		"build": "esbuild index=./src --bundle --minify --outdir=dist --packages=external --platform=node",
-		"start": "node dist"
-	},
-	"dependencies": {
-		"esbuild": "^0.23.0",
-		"express": "^5.1.0"
-	},
-	"devDependencies": {
-		"@types/express": "^5.0.3",
-		"@types/node": "^20.14.9"
-	}
+  "name": "node-ts",
+  "version": "1.0.0",
+  "author": "Erick Esquilin",
+  "description": "Node.js + TypeScript backend for video upload and HLS processing",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "ts-node-dev --respawn src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "engines": {
+    "node": ">=18.11",
+    "pnpm": ">=7.27"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "fs-extra": "^11.2.0",
+    "multer": "^1.4.5-lts.1",
+    "path": "^0.12.7"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^20.14.9",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.4.5"
+  },
+  "packageManager": "pnpm@9.4.0"
 }
