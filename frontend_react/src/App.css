@@ -1,0 +1,100 @@
+.App {
+  text-align: center;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+  background-color: #f8f9fa;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+/* Make video player responsive */
+.video-wrapper {
+  width: 100%;
+  max-width: 800px;
+  margin: 20px auto;
+  aspect-ratio: 16 / 9;
+  background-color: black;
+  position: relative;
+}
+
+/* Video element responsiveness */
+.video-js,
+.video-js .vjs-tech,
+.video-js .vjs-poster {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+}
+
+.video-js .vjs-poster {
+  background-size: contain !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+}
+
+input[type="file"] {
+  margin: 20px auto;
+  display: block;
+  font-size: 16px;
+}
+
+/* Progress bar styling */
+.progress-bar {
+  width: 90%;
+  height: 20px;
+  border: 1px solid #ccc;
+  background-color: #eee;
+  margin: 10px auto;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background-color: #4caf50;
+  color: white;
+  text-align: center;
+  line-height: 20px;
+  transition: width 0.3s ease;
+  font-size: 14px;
+}
+
+/* Spinner fallback */
+.spinner-container {
+  margin-top: 20px;
+}
+
+/* Test log styling */
+@media (max-width: 600px) {
+  .video-wrapper {
+    width: 100%;
+    aspect-ratio: auto;
+    height: auto;
+  }
+
+  .progress-bar {
+    height: 16px;
+  }
+
+  .progress-bar-fill {
+    line-height: 16px;
+    font-size: 12px;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  h2 {
+    font-size: 1.25rem;
+  }
+
+  input[type="file"] {
+    font-size: 14px;
+  }
+
+  .test-log {
+    font-size: 13px;
+    padding: 8px;
+  }
+}
