@@ -2,53 +2,22 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
-import { pipeline } from 'stream';
-import Busboy from 'busboy';
+import busboy from 'busboy';
 import ffmpeg from 'fluent-ffmpeg';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-const ensureDirs = ['uploads', 'videos', 'thumbnails', 'public'];
-ensureDirs.forEach(dir => {
-  const fullPath = path.join(__dirname, dir);
-  if (!fs.existsSync(fullPath)) {
-    fs.mkdirSync(fullPath, { recursive: true });
-    console.log('[LOG] Created folder:', fullPath);
-  }
-});
-
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type']
-}));
-app.options('*', cors());
-
-app.use(express.static(path.join(__dirname, 'public')));
-app.use('/videos', express.static(path.join(__dirname, 'videos')));
-app.use('/thumbnails', express.static(path.join(__dirname, 'thumbnails')));
-
-app.get('/', (_req: Request, res: Response) => {
-  res.send(`
-    <html>
-      <head><title>Prime Video Backend</title></head>
-      <body style="font-family:sans-serif;padding:40px;">
-        <h1>Prime Video Backend</h1>
-        <p>POST a video file to <code>/upload</code> for HLS conversion.</p>
-      </body>
-    </html>
-  `);
-});
+export { app }; // ✅ FIXED
 
 app.post('/upload', (req: Request, res: Response) => {
-  const busboy = new Busboy({ headers: req.headers });
+  const bb = busboy({ headers: req.headers });
   let filePath = '';
   let fileName = '';
   let outputDir = '';
   let thumbnailPath = '';
 
-  busboy.on('file', (_fieldname, file, filename) => {
+  bb.on('file', (_fieldname: string, file: NodeJS.ReadableStream, filename: string) => {
     fileName = path.parse(filename).name.replace(/\s+/g, '_');
     filePath = path.join(__dirname, 'uploads', `${fileName}.mp4`);
     outputDir = path.join(__dirname, 'videos', fileName);
@@ -58,7 +27,7 @@ app.post('/upload', (req: Request, res: Response) => {
     file.pipe(writeStream);
   });
 
-  busboy.on('finish', () => {
+  bb.on('finish', () => {
     fs.mkdirSync(outputDir, { recursive: true });
 
     ffmpeg(filePath)
@@ -96,7 +65,7 @@ app.post('/upload', (req: Request, res: Response) => {
       .run();
   });
 
-  req.pipe(busboy);
+  req.pipe(bb);
 });
 
 app.listen(PORT, () => {
