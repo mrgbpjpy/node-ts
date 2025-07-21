@@ -1,11 +1,11 @@
-import env from "./env"
+// src/dev.ts
+import env from "./env";
+import { app } from "./index";
 
-Object.assign(process.env, env)
 
-type ENV = typeof env
-declare global {
-	namespace NodeJS {
-		// biome-ignore lint/suspicious/noEmptyInterface:
-		interface ProcessEnv extends ENV {}
-	}
-}
+
+const PORT = Number(env.PORT) || 5000;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server listening on port ${PORT}`);
+});

@@ -1,5 +1,10 @@
+// src/env.ts
+import * as dotenv from "dotenv";
+dotenv.config();
+
 const env = {
-  PORT: "5000"
+  PORT: process.env.PORT,
+  FRONTEND_ORIGIN: process.env.FRONTEND_ORIGIN || "*",
 };
 
 export default env;

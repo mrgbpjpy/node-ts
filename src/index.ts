@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
 
-const app = express();
+export const app = express();
 const PORT = process.env.PORT || 5000;
 const FRONTEND_ORIGIN = 'https://frontend-mu-two-39.vercel.app';
 
