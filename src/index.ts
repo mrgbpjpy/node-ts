@@ -1,117 +1,85 @@
-// backend.ts
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
-import Busboy from 'busboy';
+import fs from 'fs-extra';
 import ffmpeg from 'fluent-ffmpeg';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const UPLOADS_DIR = path.join(__dirname, '../uploads');
+const VIDEOS_DIR = path.join(__dirname, '../videos');
 
-// Ensure required folders exist
-const ensureDirs = ['uploads', 'videos', 'thumbnails', 'public'];
-ensureDirs.forEach(dir => {
-  const fullPath = path.join(__dirname, dir);
-  if (!fs.existsSync(fullPath)) {
-    fs.mkdirSync(fullPath, { recursive: true });
-    console.log('[LOG] Created folder:', fullPath);
+// Ensure directories exist
+fs.ensureDirSync(UPLOADS_DIR);
+fs.ensureDirSync(VIDEOS_DIR);
+
+// Enable CORS for frontend on Vercel and local
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://frontend-mu-two-39.vercel.app',
+];
+
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true,
+}));
+
+// Multer config
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+  filename: (_req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
+});
+const upload = multer({ storage });
+
+// Upload route
+app.post('/upload', upload.single('video'), async (req: Request, res: Response) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const inputPath = req.file.path;
+    const filename = path.parse(req.file.filename).name;
+    const outputDir = path.join(VIDEOS_DIR, filename);
+    const outputM3U8 = path.join(outputDir, 'index.m3u8');
+
+    await fs.ensureDir(outputDir);
+
+    ffmpeg(inputPath)
+      .outputOptions([
+        '-codec: copy',
+        '-start_number 0',
+        '-hls_time 10',
+        '-hls_list_size 0',
+        '-f hls',
+      ])
+      .output(outputM3U8)
+      .on('end', async () => {
+        await fs.unlink(inputPath);
+        res.json({ streamUrl: `/videos/${filename}/index.m3u8` });
+      })
+      .on('error', (err) => {
+        console.error('FFmpeg error:', err.message);
+        res.status(500).json({ error: 'Video conversion failed' });
+      })
+      .run();
+
+  } catch (err) {
+    console.error('Upload failed:', err);
+    res.status(500).json({ error: 'Server error during upload' });
   }
 });
 
-// CORS configuration
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type']
-}));
-app.options('*', cors());
+// Serve videos
+app.use('/videos', express.static(VIDEOS_DIR));
 
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
-app.use('/videos', express.static(path.join(__dirname, 'videos')));
-app.use('/thumbnails', express.static(path.join(__dirname, 'thumbnails')));
-
-// Root endpoint
-app.get('/', (_req: Request, res: Response) => {
-  res.send(`
-    <html>
-      <head><title>Prime Video Backend</title></head>
-      <body style="font-family:sans-serif;padding:40px;">
-        <h1>Prime Video Backend</h1>
-        <p>POST a video file to <code>/upload</code> for HLS conversion.</p>
-      </body>
-    </html>
-  `);
+// Root
+app.get('/', (_req, res) => {
+  res.send('✅ Video upload backend is running.');
 });
 
-// Upload handler
-app.post('/upload', (req: Request, res: Response) => {
-  const bb = Busboy({ headers: req.headers });
-  let filePath = '';
-  let fileName = '';
-  let outputDir = '';
-  let thumbnailPath = '';
-
-  bb.on('file', (_fieldname: string, file: NodeJS.ReadableStream, filename: string) => {
-    fileName = path.parse(filename).name.replace(/\s+/g, '_');
-    filePath = path.join(__dirname, 'uploads', `${fileName}.mp4`);
-    outputDir = path.join(__dirname, 'videos', fileName);
-    thumbnailPath = path.join(__dirname, 'thumbnails', `${fileName}.jpg`);
-
-    const writeStream = fs.createWriteStream(filePath);
-    file.pipe(writeStream);
-  });
-
-  bb.on('finish', () => {
-    fs.mkdirSync(outputDir, { recursive: true });
-
-    ffmpeg(filePath)
-      .outputOptions([
-        '-vf scale=w=360:h=640:force_original_aspect_ratio=decrease',
-        '-c:a aac',
-        '-c:v libx264',
-        '-preset veryfast',
-        '-f hls',
-        '-hls_time 4',
-        '-hls_list_size 0',
-        `-hls_segment_filename ${path.join(outputDir, 'segment_%03d.ts')}`
-      ])
-      .output(path.join(outputDir, 'index.m3u8'))
-      .on('end', () => {
-        ffmpeg(filePath)
-          .screenshots({
-            timestamps: ['00:00:01'],
-            filename: `${fileName}.jpg`,
-            folder: path.join(__dirname, 'thumbnails'),
-            size: '360x640'
-          })
-          .on('end', () => {
-            fs.unlinkSync(filePath);
-            res.json({
-              streamUrl: `/videos/${fileName}/index.m3u8`,
-              thumbnailUrl: `/thumbnails/${fileName}.jpg`
-            });
-          })
-          .on('error', (thumbErr: Error) => {
-            console.error('[ERROR] Thumbnail generation failed:', thumbErr);
-            res.status(500).json({ error: 'Thumbnail generation failed' });
-          });
-      })
-      .on('error', (err: Error) => {
-        console.error('[ERROR] FFmpeg HLS conversion failed:', err);
-        res.status(500).json({ error: 'FFmpeg processing failed' });
-      })
-      .run();
-  });
-
-  req.pipe(bb);
-});
-
-// Start server
 app.listen(PORT, () => {
-  console.log(`[LOG] Backend running at http://localhost:${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
-
-// Export app for development/testing
-export { app };
