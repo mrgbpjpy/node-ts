@@ -7,13 +7,17 @@ import { spawn } from 'child_process';
 
 export const app = express();
 const PORT = process.env.PORT || 5000;
-const FRONTEND_ORIGIN = [
-    'https://frontend-mu-two-39.vercel.app',
-    'http://localhost:3000'
-];
+const FRONTEND_ORIGINS = ['https://frontend-mu-two-39.vercel.app', 'http://localhost:3000'];
 
+// ✅ Dynamically allow origin
 app.use(cors({
-  origin: FRONTEND_ORIGIN,
+  origin: (origin, callback) => {
+    if (!origin || FRONTEND_ORIGINS.includes(origin)) {
+      callback(null, origin);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
@@ -26,14 +30,15 @@ app.use('/thumbnails', express.static(path.join(__dirname, 'thumbnails')));
 const upload = multer({ dest: 'uploads/' });
 
 app.post('/upload', upload.single('video'), (req: Request, res: Response) => {
-  res.setHeader('Access-Control-Allow-Origin', FRONTEND_ORIGIN);
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  // ✅ Set dynamic origin for response headers
+  const origin = req.headers.origin;
+  if (origin && FRONTEND_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
 
   const file = (req as Request & { file?: Express.Multer.File }).file;
-
-  if (!file) {
-    return res.status(400).json({ error: 'No file uploaded' });
-  }
+  if (!file) return res.status(400).json({ error: 'No file uploaded' });
 
   const { originalname, path: tempPath } = file;
   const baseFilename = path.parse(originalname).name;
@@ -41,9 +46,7 @@ app.post('/upload', upload.single('video'), (req: Request, res: Response) => {
   const outputPath = path.join(outputDir, 'index.m3u8');
   const thumbnailPath = path.join(__dirname, 'thumbnails', `${baseFilename}.jpg`);
 
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
+  if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
   const ffmpeg = spawn('ffmpeg', [
     '-i', tempPath,
@@ -64,15 +67,9 @@ app.post('/upload', upload.single('video'), (req: Request, res: Response) => {
   ]);
 
   ffmpeg.on('close', (code) => {
-    try {
-      fs.unlinkSync(tempPath);
-    } catch (err) {
-      console.warn('❌ Failed to delete temp file:', err);
-    }
+    try { fs.unlinkSync(tempPath); } catch (err) { console.warn('❌ Temp cleanup failed:', err); }
 
-    if (code !== 0) {
-      return res.status(500).json({ error: 'FFmpeg processing failed' });
-    }
+    if (code !== 0) return res.status(500).json({ error: 'FFmpeg processing failed' });
 
     const thumbnail = spawn('ffmpeg', [
       '-i', outputPath,
@@ -82,9 +79,7 @@ app.post('/upload', upload.single('video'), (req: Request, res: Response) => {
     ]);
 
     thumbnail.on('close', (thumbCode) => {
-      if (thumbCode !== 0) {
-        return res.status(500).json({ error: 'Thumbnail generation failed' });
-      }
+      if (thumbCode !== 0) return res.status(500).json({ error: 'Thumbnail generation failed' });
 
       return res.json({
         message: 'Upload and processing successful',
@@ -105,10 +100,13 @@ app.post('/upload', upload.single('video'), (req: Request, res: Response) => {
   });
 });
 
-// General error handler
+// 🔴 Error handler must also respect CORS
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  res.setHeader('Access-Control-Allow-Origin', FRONTEND_ORIGIN);
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  const origin = req.headers.origin;
+  if (origin && FRONTEND_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
   console.error('❌ Server error:', err.message);
   res.status(500).json({ error: 'Internal server error' });
 });
