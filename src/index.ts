@@ -2,15 +2,17 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
-import busboy, { BusboyConfig } from 'busboy';
 import ffmpeg from 'fluent-ffmpeg';
+import { Writable } from 'stream';
+
+// Import Busboy in a way that allows constructor usage
+const Busboy = require('busboy');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Ensure required folders exist
-const ensureDirs = ['uploads', 'videos', 'thumbnails', 'public'];
-ensureDirs.forEach(dir => {
+['uploads', 'videos', 'thumbnails', 'public'].forEach(dir => {
   const fullPath = path.join(__dirname, dir);
   if (!fs.existsSync(fullPath)) {
     fs.mkdirSync(fullPath, { recursive: true });
@@ -26,12 +28,12 @@ app.use(cors({
 }));
 app.options('*', cors());
 
-// Static routes
+// Static file serving
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/videos', express.static(path.join(__dirname, 'videos')));
 app.use('/thumbnails', express.static(path.join(__dirname, 'thumbnails')));
 
-// Default GET
+// Home route
 app.get('/', (_req: Request, res: Response) => {
   res.send(`
     <html>
@@ -46,23 +48,33 @@ app.get('/', (_req: Request, res: Response) => {
 
 // Upload route
 app.post('/upload', (req: Request, res: Response) => {
-  const bb = busboy({ headers: req.headers } as BusboyConfig);
+  const busboy = new Busboy({ headers: req.headers });
+
   let filePath = '';
   let fileName = '';
   let outputDir = '';
   let thumbnailPath = '';
 
-  bb.on('file', (_fieldname: string, file: NodeJS.ReadableStream, filename: string) => {
-    fileName = path.parse(filename).name.replace(/\s+/g, '_');
-    filePath = path.join(__dirname, 'uploads', `${fileName}.mp4`);
-    outputDir = path.join(__dirname, 'videos', fileName);
-    thumbnailPath = path.join(__dirname, 'thumbnails', `${fileName}.jpg`);
+  busboy.on(
+    'file',
+    (
+      fieldname: string,
+      file: NodeJS.ReadableStream,
+      filename: string,
+      encoding: string,
+      mimetype: string
+    ) => {
+      fileName = path.parse(filename).name.replace(/\s+/g, '_');
+      filePath = path.join(__dirname, 'uploads', `${fileName}.mp4`);
+      outputDir = path.join(__dirname, 'videos', fileName);
+      thumbnailPath = path.join(__dirname, 'thumbnails', `${fileName}.jpg`);
 
-    const writeStream = fs.createWriteStream(filePath);
-    file.pipe(writeStream);
-  });
+      const writeStream = fs.createWriteStream(filePath);
+      file.pipe(writeStream as Writable);
+    }
+  );
 
-  bb.on('finish', () => {
+  busboy.on('finish', () => {
     fs.mkdirSync(outputDir, { recursive: true });
 
     ffmpeg(filePath)
@@ -86,7 +98,7 @@ app.post('/upload', (req: Request, res: Response) => {
             size: '360x640'
           })
           .on('end', () => {
-            fs.unlinkSync(filePath);
+            fs.unlinkSync(filePath); // Delete original .mp4 after conversion
             res.json({
               streamUrl: `/videos/${fileName}/index.m3u8`,
               thumbnailUrl: `/thumbnails/${fileName}.jpg`
@@ -104,13 +116,13 @@ app.post('/upload', (req: Request, res: Response) => {
       .run();
   });
 
-  req.pipe(bb);
+  req.pipe(busboy);
 });
 
-// Start server
+// Start the server
 app.listen(PORT, () => {
   console.log(`[LOG] Backend running at http://localhost:${PORT}`);
 });
 
-// Export app for development/testing
+// For testing purposes
 export { app };
