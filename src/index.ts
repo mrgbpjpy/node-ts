@@ -2,7 +2,8 @@ import express from 'express';
 
 const app = express();
 
-console.log(process.env.PORT)
+// src/index.ts
 app.get('/ping', (req, res) => {
-  res.send('pong');
+  res.send('pong from my repo! hello world');
 });
+
