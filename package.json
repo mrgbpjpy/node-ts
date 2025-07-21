@@ -4,7 +4,6 @@
   "author": "Erick Esquilin",
   "description": "Node.js + TypeScript backend for video upload and HLS processing",
   "main": "dist/index.js",
-  "type": "module",
   "scripts": {
     "dev": "ts-node-dev --respawn src/index.ts",
     "build": "tsc",
