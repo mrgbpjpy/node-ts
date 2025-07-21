@@ -70,6 +70,7 @@ app.post("/upload", upload.single("video"), async (req: Request, res: Response) 
         "-vframes", "1",
         "-vf", "scale=1280:-1",
         "-q:v", "2",
+        "-update","1",
         "-pix_fmt", "yuv420p",
         thumbnailPath,
       ]);
