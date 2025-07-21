@@ -8,16 +8,18 @@ import { spawn } from "child_process";
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Serve videos and thumbnails
+// Static file serving
 app.use("/videos", express.static(path.join(__dirname, "videos")));
 app.use("/thumbnails", express.static(path.join(__dirname, "thumbnails")));
 
-// Multer setup
+// Multer setup for file uploads
 const upload = multer({ dest: "uploads/" });
 
+// Upload endpoint
 app.post("/upload", upload.single("video"), async (req: Request, res: Response) => {
   if (!req.file) {
     return res.status(400).json({ error: "No file uploaded" });
@@ -31,11 +33,11 @@ app.post("/upload", upload.single("video"), async (req: Request, res: Response) 
   const thumbnailPath = path.join(thumbnailDir, `${baseName}.jpg`);
 
   try {
-    // Create output folders if they don't exist
+    // Ensure output directories exist
     fs.mkdirSync(videoDir, { recursive: true });
     fs.mkdirSync(thumbnailDir, { recursive: true });
 
-    // FFmpeg command to generate HLS stream
+    // Convert to HLS
     const ffmpegProcess = spawn("ffmpeg", [
       "-i", inputPath,
       "-vf", "scale=1280:-2",
@@ -63,14 +65,14 @@ app.post("/upload", upload.single("video"), async (req: Request, res: Response) 
         return res.status(500).json({ error: "FFmpeg execution error" });
       }
 
-      // After HLS generation, generate thumbnail
+      // Generate thumbnail after HLS conversion
       const thumbProcess = spawn("ffmpeg", [
         "-i", inputPath,
         "-ss", "00:00:01.000",
         "-vframes", "1",
         "-vf", "scale=1280:-1",
         "-q:v", "2",
-        "-update","1",
+        "-update", "1", // 🛠 Fixes 'no image sequence' error
         "-pix_fmt", "yuv420p",
         thumbnailPath,
       ]);
@@ -84,7 +86,6 @@ app.post("/upload", upload.single("video"), async (req: Request, res: Response) 
           return res.status(500).json({ error: "Thumbnail generation failed" });
         }
 
-        // Success
         return res.status(200).json({
           message: "Upload and processing complete",
           streamUrl: `/videos/${baseName}/index.m3u8`,
@@ -98,6 +99,10 @@ app.post("/upload", upload.single("video"), async (req: Request, res: Response) 
   }
 });
 
+// Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server is running on http://localhost:${PORT}`);
 });
+
+// 👇 Export for testing or dev entry point
+export { app };
