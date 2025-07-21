@@ -16,9 +16,11 @@
 		"start": "node dist"
 	},
 	"dependencies": {
-		"esbuild": "^0.23.0"
+		"esbuild": "^0.23.0",
+		"express": "^5.1.0"
 	},
 	"devDependencies": {
+		"@types/express": "^5.0.3",
 		"@types/node": "^20.14.9"
 	}
 }
