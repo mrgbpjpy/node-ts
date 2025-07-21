@@ -7,7 +7,7 @@ import { spawn } from "child_process";
 
 const app = express();
 const PORT = process.env.PORT || 8080;
-const allowedOrigins = ["http://localhost:3000", "https://frontend-mu-two-39.vercel.app"]; // ✅ Add your frontend domains here
+const allowedOrigins = [ "https://frontend-mu-two-39.vercel.app" ,"http://localhost:3000"]; // ✅ Add your frontend domains here
 // Middleware
 app.use(cors({
   origin: function (origin, callback) {
